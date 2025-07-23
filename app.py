@@ -3,8 +3,10 @@ import csv
 import io
 from schema import Item
 from pydantic import ValidationError
+from falcon import HTTPUnauthorized
 from falcon import before
 from hooks.hook import auth_required
+from custom_error_handler import handle_value_error, handle_unauthorized_error, handle_generic_exception
 
 items = []  # Mock database
 
@@ -35,26 +37,18 @@ class ItemResource:
 
     @before(auth_required)
     def on_post(self, req, resp):
-        try:
-            raw_data = req.media
-            item = Item(**raw_data)
-            items.append(item.model_dump())
 
-            log_item_addition(item.model_dump())
+        raw_data = req.media
+        item = Item(**raw_data)
+        items.append(item.model_dump())
 
-            resp.status = falcon.HTTP_201
-            resp.media = {
-                "message": "Item added successfully",
-                "item": item.model_dump()
-            }
+        log_item_addition(item.model_dump())
 
-        except ValidationError as e:
-            resp.status = falcon.HTTP_400
-            resp.media = {"error": e.errors()}
-
-        except Exception as e:
-            resp.status = falcon.HTTP_500
-            resp.media = {"error": str(e)}
+        resp.status = falcon.HTTP_201
+        resp.media = {
+            "message": "Item added successfully",
+            "item": item.model_dump()
+        }
 
 
 def log_item_addition(item):
@@ -66,3 +60,7 @@ app = falcon.App()
 
 app.add_route("/items", ItemResource())
 app.add_route("/items/{format}", ItemResource())
+# Custon ERROR
+app.add_error_handler(ValidationError, handle_value_error)
+app.add_error_handler(HTTPUnauthorized, handle_unauthorized_error)
+app.add_error_handler(Exception, handle_generic_exception)
